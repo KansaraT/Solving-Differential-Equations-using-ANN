@@ -1,5 +1,5 @@
-#1st order ODE (Initial value problem)
-#Solve y' + y*(x + (1 + 3*x**2)/(1 + x + x**3)) = x**3 + 2*x + x**2*(1+3*x**2)/(1 + x + x**3) with y(0) = 1 and x ∈ [0, 1]
+#Solve first order ODE using ANN
+#y' + x**2 * y = x**2 with y(0) = 0 and x ∈ [0, 1]
 
 import tensorflow as tf
 import numpy as np
@@ -7,23 +7,24 @@ import matplotlib.pyplot as plt
 
 # Define the trial solution
 def trial_func(x, net):
-    return 1 + x * net(x)
+    return x * net(x)
 
 # Define the ODE and its boundary condition
 def f(x, y):
-    return (x**3 + 2*x + x**2*(1+3*x**2)/(1 + x + x**3) - y*(x + (1 + 3*x**2)/(1 + x + x**3)))
+    return x**2 - x**2 * y
 
 def boundary_condition(x):
-    return 1.0
+    return 0.0
 
 # Set up the training data
-x_train = np.linspace(0, 1, 1000).reshape(-1, 1).astype(np.float32)
+x_train = np.linspace(0, 1, 1500).reshape(-1, 1).astype(np.float32)
 y_train = boundary_condition(x_train)
 
 # Create the TensorFlow model
 model = tf.keras.Sequential([
     tf.keras.layers.Dense(100, activation='relu'),
     tf.keras.layers.Dense(200, activation='relu'),
+    tf.keras.layers.Dense(300, activation='relu'),
     tf.keras.layers.Dense(1)
 ])
 
@@ -57,10 +58,10 @@ for epoch in range(1000):
         break
 
 # Evaluate the trained model on test data
-x_test = np.linspace(0, 1, 1000).reshape(-1, 1).astype(np.float32)
+x_test = np.linspace(0, 1, 1500).reshape(-1, 1).astype(np.float32)
 y_test = trial_func(x_test, model)
 
-y_actual = np.exp(-x_test**2/2)/(1 + x_test + x_test**3) + x_test**2
+y_actual = 1 - np.exp(-x_test**3/3)
 # Plot the true solution and the predicted solution
 plt.plot(x_test, y_test, label='Predicted')
 plt.plot(x_test, y_actual, label='True')
