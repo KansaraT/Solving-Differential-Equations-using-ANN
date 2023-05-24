@@ -1,0 +1,80 @@
+# Solve second order ode(Initial value problem) using ANN
+# y" + (1/5)*y' + y = -(1/5)*exp(-x/5)*cos(x) with ICs y(0) = 0, y'(0) = 1, x ∈ [0, 2]
+
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+
+class Net(tf.keras.Model):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.hidden1 = tf.keras.layers.Dense(200, activation='tanh')
+        self.hidden2 = tf.keras.layers.Dense(400, activation='tanh')
+        self.hidden3 = tf.keras.layers.Dense(600, activation='tanh')
+        self.output_layer = tf.keras.layers.Dense(1)
+        
+    def call(self, x):
+        x = self.hidden1(x)
+        x = self.hidden2(x)
+        x = self.hidden3(x)
+        x = self.output_layer(x)
+        return x
+
+def f(x, y, dydx):
+    return (-1/5*tf.exp(-x/5)*tf.cos(x) - y - 1/5*dydx)
+
+def trial_func(x, net):
+    return x + x**2 * net(x)
+
+def loss_func(dydx, d2ydx2, x, net):
+    y = trial_func(x, net)
+    return tf.reduce_mean(tf.square(d2ydx2 - f(x, y, dydx)))
+
+def exact_solution(x):
+    return np.exp(-x/5) * np.sin(x)
+
+x_train = np.linspace(0, 2, 1000).reshape(-1, 1).astype(np.float32)
+y_train = np.zeros_like(x_train)
+y_train[0] = 0.0
+dydx_train = np.ones_like(x_train)
+
+x_train = tf.convert_to_tensor(x_train, dtype=tf.float32)
+y_train = tf.convert_to_tensor(y_train, dtype=tf.float32)
+dydx_train = tf.convert_to_tensor(dydx_train, dtype=tf.float32)
+
+model = Net()
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
+
+@tf.function
+def compute_gradients(x, y):
+    with tf.GradientTape(persistent=True) as tape:
+        tape.watch(x)
+        y_pred = trial_func(x, model)
+        dydx_pred = tape.gradient(y_pred, x)
+        d2ydx2_pred = tape.gradient(dydx_pred, x)
+        loss = loss_func(dydx_pred, d2ydx2_pred, x, model)
+
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    return loss
+
+for epoch in range(1000):
+    loss = compute_gradients(x_train, y_train)
+    
+    if epoch % 100 == 0:
+        print(f"Epoch: {epoch}, Loss: {loss.numpy()}")
+
+#-------------------------------------------------------------------------------
+
+x_test = np.linspace(0, 2, 1000).reshape(-1, 1)
+x_test = tf.convert_to_tensor(x_test, dtype=tf.float32)
+y_test = trial_func(x_test, model)
+y_exact = exact_solution(x_test)
+
+plt.plot(x_test.numpy(), y_test.numpy(), label='Predicted')
+plt.plot(x_test.numpy(), y_exact, label='Exact')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.grid(True)
+plt.show()
