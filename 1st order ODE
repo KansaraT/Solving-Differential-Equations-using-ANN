@@ -1,0 +1,71 @@
+#1st order ODE (Initial value problem)
+#Solve y' + y*(x + (1 + 3*x**2)/(1 + x + x**3)) = x**3 + 2*x + x**2*(1+3*x**2)/(1 + x + x**3) with y(0) = 1 and x ∈ [0, 1]
+
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define the trial solution
+def trial_func(x, net):
+    return 1 + x * net(x)
+
+# Define the ODE and its boundary condition
+def f(x, y):
+    return (x**3 + 2*x + x**2*(1+3*x**2)/(1 + x + x**3) - y*(x + (1 + 3*x**2)/(1 + x + x**3)))
+
+def boundary_condition(x):
+    return 1.0
+
+# Set up the training data
+x_train = np.linspace(0, 1, 1000).reshape(-1, 1).astype(np.float32)
+y_train = boundary_condition(x_train)
+
+# Create the TensorFlow model
+model = tf.keras.Sequential([
+    tf.keras.layers.Dense(100, activation='relu'),
+    tf.keras.layers.Dense(200, activation='relu'),
+    tf.keras.layers.Dense(1)
+])
+
+# Define the loss function and optimizer
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+
+# Training loop
+for epoch in range(1000):
+    with tf.GradientTape() as tape:
+        # Forward pass: compute predicted y-values and its gradient
+        x_train_tape = tf.convert_to_tensor(x_train)
+        x_train_tape = tf.Variable(x_train_tape)
+        with tf.GradientTape() as tape2:
+            tape2.watch(x_train_tape)
+            y_pred = trial_func(x_train_tape, model)
+        dydx = tape2.gradient(y_pred, x_train_tape)
+        
+        # Compute the loss between dy/dx and f(x, y_pred)
+        loss = tf.reduce_mean(tf.square(dydx - f(x_train_tape, y_pred)))
+    
+    # Compute gradients and update weights
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+    # Print the loss value every 100 epochs
+    if epoch % 100 == 0:
+        print("Epoch {}: Loss = {}".format(epoch, loss.numpy()))
+    
+    # Check if the desired loss threshold is reached
+    if loss < 0.00001:
+        break
+
+# Evaluate the trained model on test data
+x_test = np.linspace(0, 1, 1000).reshape(-1, 1).astype(np.float32)
+y_test = trial_func(x_test, model)
+
+y_actual = np.exp(-x_test**2/2)/(1 + x_test + x_test**3) + x_test**2
+# Plot the true solution and the predicted solution
+plt.plot(x_test, y_test, label='Predicted')
+plt.plot(x_test, y_actual, label='True')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.grid(True)
+plt.show()
