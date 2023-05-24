@@ -1,0 +1,134 @@
+# Solve PDE using ANN
+# Let pder be partial  derivative
+# pder^2(u)/pder(x^2) + pder^2(u)/pder(y^2) = f(x,y) 
+
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+
+class Net(tf.keras.Model):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.hidden1 = tf.keras.layers.Dense(20, activation='relu')
+        self.output_layer = tf.keras.layers.Dense(1)
+
+    def call(self, x, y):
+        inputs = tf.concat([x, y], axis=1)
+        x = self.hidden1(inputs)
+        x = self.output_layer(x)
+        return x
+
+def f(x, y):
+    return tf.exp(-x) * (x - 2 + y**3 + 6*y)
+
+def trial_func(x, y, net):
+    A = (1-x)*y**3 + x*np.exp(-1)*(1+y**3) + (1-y)*(x*tf.exp(-x) - x*np.exp(-1)) + y*(tf.exp(-x)*(1+x)-(1-x)-2*x*np.exp(-1))
+    u = A + x * (1 - x) * y * (1 - y) * net(x, y)
+    return u
+
+def loss_func(d2udx2, d2udy2, x, y, net):
+    u = trial_func(x, y, net)
+    return tf.reduce_mean(tf.math.square(d2udx2 + d2udy2 - f(x, y)))
+
+def exact_solution(x, y):
+    return tf.exp(-x)*(x+y**3)
+
+x_train = np.linspace(0, 1, 100, dtype=np.float32)
+y_train = np.linspace(0, 1, 100, dtype=np.float32)
+x_train, y_train = np.meshgrid(x_train, y_train)
+
+x_train = tf.convert_to_tensor(x_train, dtype=tf.float32)
+y_train = tf.convert_to_tensor(y_train, dtype=tf.float32)
+
+
+u_train = tf.zeros_like(x_train)
+
+model = Net()
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
+
+@tf.function
+def compute_gradients(x, y, u):
+    with tf.GradientTape(persistent=True) as tape:
+        tape.watch([x, y])
+        u_pred = trial_func(x, y, model)
+        d2udx2_pred = tape.gradient(tape.gradient(u_pred, x), x)
+        d2udy2_pred = tape.gradient(tape.gradient(u_pred, y), y)
+        loss = loss_func(d2udx2_pred, d2udy2_pred, x, y, model)
+
+    gradients = tape.gradient(loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    return loss, gradients
+
+y_axis = np.array([])
+for epoch in range(1000):
+    loss, gradients = compute_gradients(x_train, y_train, u_train)
+    y_axis = np.append(y_axis,loss)
+    if epoch % 100 == 0:
+        print(f"Epoch: {epoch}, Loss: {loss.numpy()}")
+
+x_axis = np.arange(0,2000,1)
+plt.plot(x_axis, y_axis)
+plt.show()
+#-------------------------------------------------------------------------------
+
+# Reshape the input data for plotting
+x_test = np.linspace(0, 1, 100)
+y_test = np.linspace(0, 1, 100)
+x_test, y_test = np.meshgrid(x_test, y_test)
+x_test = tf.constant(x_test, dtype=tf.float32)
+y_test = tf.constant(y_test, dtype=tf.float32)
+
+# Evaluate the predicted values
+u_pred = trial_func(x_test, y_test, model)
+
+# Reshape the predicted values
+u_pred = np.reshape(u_pred.numpy(), x_test.shape)
+
+# Plotting the actual and predicted graph
+fig = plt.figure(figsize=(10, 6))
+ax = fig.add_subplot(111, projection='3d')
+
+# Actual function values
+ax.plot_surface(x_test, y_test, exact_solution(x_test, y_test), cmap='viridis', alpha=0.5, label='Actual')
+
+# Predicted function values
+ax.plot_surface(x_test, y_test, u_pred, cmap='plasma', alpha=0.8, label='Predicted')
+
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_zlabel('u')
+ax.set_title('Actual vs. Predicted Solution')
+
+# Show the plot
+plt.show()
+
+#-------------------------------------------------------------------------------
+
+# Compute the error
+error = np.abs(exact_solution(x_test, y_test) - u_pred)
+
+# Maximum error
+max_error = np.max(error)
+
+# Plotting the error graph
+fig = plt.figure(figsize=(8, 6))
+ax = fig.add_subplot(111, projection='3d')
+
+# Error values
+ax.plot_surface(x_test, y_test, error, cmap='Reds', alpha=0.8, label='Error')
+
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_zlabel('Error')
+ax.set_title('Error')
+
+# Show the plot
+plt.show()
+
+print(f"Maximum error: {max_error}")
+
+#-------------------------------------------------------------------------------
+
+
