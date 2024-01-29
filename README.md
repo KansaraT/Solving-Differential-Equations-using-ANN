@@ -1,2 +1,3 @@
 # Solving-Differential-Equations-using-ANN
-The implementation of FIrst order ode, second order ode and pde is done Python using libraries such as Numpy, Pandas, Matplotlib. 
+
+This project focuses on employing Artificial Neural Networks (ANN) as a powerful tool for solving differential equations. Leveraging the capacity of neural networks to learn complex patterns, the system is trained to approximate solutions to differential equations, providing a versatile and data-driven approach to problem-solving. The project includes implementation details, code samples, and examples to showcase the effectiveness of this methodology in solving a range of differential equations. Explore how the fusion of machine learning and mathematical modeling contributes to efficient and accurate solutions in diverse domains.
